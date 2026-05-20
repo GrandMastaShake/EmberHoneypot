@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -112,12 +112,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class InteractionLogger:
-    """Logs all attacker interactions."""
+# Maximum number of log entries held in memory across all sessions.
+# Prevents unbounded growth in long-running deployments.
+_MAX_LOG_ENTRIES: int = 50_000
 
-    def __init__(self) -> None:
+
+class InteractionLogger:
+    """Logs all attacker interactions.
+
+    Memory is bounded by ``_MAX_LOG_ENTRIES``: once the global log ring
+    fills, the oldest entry is discarded (deque maxlen semantics).
+    Per-session lists remain unbounded within a session but are evicted
+    when the session is garbage-collected.
+    """
+
+    def __init__(self, max_entries: int = _MAX_LOG_ENTRIES) -> None:
         self._logs: dict[UUID, list[InteractionLog]] = defaultdict(list)
-        self._all_logs: list[InteractionLog] = []
+        self._all_logs: deque[InteractionLog] = deque(maxlen=max_entries)
         self._sequence_counters: dict[UUID, int] = defaultdict(int)
 
     async def log_command(
@@ -136,7 +147,7 @@ class InteractionLogger:
             session_id=session_id,
             attacker_id=attacker_id,
             honeypot_id=honeypot_id,
-            timestamp=timestamp or datetime.utcnow(),
+            timestamp=timestamp or datetime.now(timezone.utc),
             sequence_number=self._sequence_counters[session_id],
             interaction_type=InteractionType.COMMAND,
             raw_input=command,
@@ -179,7 +190,9 @@ class InteractionLogger:
         return list(self._logs.get(session_id, []))
 
     async def get_all_logs(self, limit: int = 1000) -> list[InteractionLog]:
-        return self._all_logs[-limit:]
+        # deque does not support slice indexing; convert to list first.
+        logs = list(self._all_logs)
+        return logs[-limit:]
 
     def _parse_command(self, command: str) -> ParsedCommand | None:
         if not command:

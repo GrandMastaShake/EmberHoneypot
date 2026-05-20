@@ -204,8 +204,11 @@ class HoneypotOrchestrator:
         return min(delay, 2.0)  # Cap at 2 seconds
 
     @staticmethod
-    def _response_delay(complexity: str = "low") -> None:
-        """Apply realistic timing jitter to responses."""
+    async def _response_delay(complexity: str = "low") -> None:  # noqa: RUF029
+        """Apply realistic timing jitter to responses (async-safe).
+
+        Uses ``await asyncio.sleep()`` to avoid blocking the event loop.
+        """
         base_map = {
             "ssh_handshake": 0.15,
             "command": 0.05,
@@ -216,7 +219,7 @@ class HoneypotOrchestrator:
             "high": 0.15,
         }
         base = base_map.get(complexity, 0.05)
-        time.sleep(HoneypotOrchestrator._realistic_delay(base=base, sigma=0.8))
+        await asyncio.sleep(HoneypotOrchestrator._realistic_delay(base=base, sigma=0.8))
 
     @staticmethod
     def _validate_timing_distribution(samples: list[float]) -> dict:

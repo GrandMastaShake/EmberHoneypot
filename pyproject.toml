@@ -31,13 +31,17 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.4.0",
     "mypy>=1.9.0",
+    "bandit[toml]>=1.7.0",
 ]
 
 [project.scripts]
 ember-honeypot = "honeypot.api.main:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["honeypot"]
+packages = ["ember_honeypot"]
+
+[tool.hatch.build]
+package-data = {"*" = ["py.typed"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,3 +55,9 @@ branch = true
 [tool.coverage.report]
 fail_under = 80
 show_missing = true
+
+[tool.bandit]
+targets = ["api", "core", "deception", "intel", "integration", "swarm"]
+exclude_dirs = ["tests", ".venv", "venv"]
+skips = ["B101", "B311"]  # B311: random is intentional for bait data generation
+recursive = true

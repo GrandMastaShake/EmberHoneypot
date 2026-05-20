@@ -494,8 +494,12 @@ class HoneypotEngine:
         return min(delay, 2.0)  # Cap at 2 seconds
 
     @staticmethod
-    def _response_delay(complexity: str = "low") -> None:
-        """Apply realistic timing jitter to responses.
+    async def _response_delay(complexity: str = "low") -> None:  # noqa: RUF029
+        """Apply realistic timing jitter to responses (async-safe).
+
+        Uses ``await asyncio.sleep()`` instead of ``time.sleep()`` so the
+        event loop is not blocked. A blocked event loop during deception delay
+        would prevent all concurrent connections from being served.
 
         Args:
             complexity: One of 'ssh_handshake', 'command', 'file_listing',
@@ -511,7 +515,7 @@ class HoneypotEngine:
             "high": 0.15,
         }
         base = base_map.get(complexity, 0.05)
-        time.sleep(HoneypotEngine._realistic_delay(base=base, sigma=0.8))
+        await asyncio.sleep(HoneypotEngine._realistic_delay(base=base, sigma=0.8))
 
     def _allocate_port(self) -> int:
         """Allocate the next available port in the configured range."""

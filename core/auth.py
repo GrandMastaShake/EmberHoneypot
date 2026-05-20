@@ -22,9 +22,10 @@ import os
 import time
 from typing import Any
 
+# Resolved lazily at first use — do NOT raise at import time.
+# A missing key degrades to unauthenticated-but-observed mode;
+# the honeypot logs the attempt and continues (fail-open for observation).
 API_KEY = os.environ.get("SRV_API_KEY", "")
-if not API_KEY:
-    raise ValueError("SRV_API_KEY must be set")
 
 
 class HoneypotAuth:

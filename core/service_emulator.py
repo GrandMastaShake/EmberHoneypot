@@ -9,7 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
+import secrets
+import string
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -318,17 +321,22 @@ class SSHEmulator(ServiceEmulator):
         ),
     }
 
-    # Credential pairs that will be "accepted"
-    _VALID_CREDENTIALS: set[tuple[str, str]] = {
-        ("user", "password123"),
-        ("admin", "admin"),
-        ("root", "root"),
-        ("achen", "Summer2024!"),
-        ("deploy", "deploy2024"),
-        ("postgres", "pg_secret_99"),
-        ("ubuntu", "ubuntu"),
-        ("test", "test"),
-    }
+    # Credential pairs that will be "accepted" — loaded at instance creation, not
+    # hardcoded as static class data.  Reading from env vars allows operators to
+    # rotate bait credentials across deployments without a code change.  The env
+    # var ``HONEYPOT_VALID_CREDS`` is a semicolon-separated list of "user:pass"
+    # pairs (e.g. ``alice:secret;bob:p@ss``).  When the env var is absent, a
+    # set of well-known weak-credential pairs is generated at runtime so that
+    # each honeypot instance can vary them slightly if desired.
+    _VALID_CREDENTIALS: set[tuple[str, str]] = set()  # populated in __init__
+
+    # Default weak-credential usernames used when no env var is present.
+    # Passwords are intentionally trivial bait — they exist to attract
+    # attackers, not to protect real systems.
+    _DEFAULT_CRED_USERNAMES: tuple[str, ...] = (
+        "user", "admin", "root", "ubuntu", "test",
+        "deploy", "postgres", "operator",
+    )
 
     def __init__(
         self,
@@ -339,6 +347,30 @@ class SSHEmulator(ServiceEmulator):
         super().__init__(banner, version_string, config)
         self._auth_stage: dict[str, str] = {}  # session_id -> auth stage
         self._failed_attempts: dict[str, int] = {}  # source_ip -> count
+
+        # -- Bait credentials: instance-level, not static class data -----------
+        # Load from HONEYPOT_VALID_CREDS env var ("user:pass;user2:pass2") or
+        # generate a default set of weak bait pairs at runtime.
+        env_creds = os.environ.get("HONEYPOT_VALID_CREDS", "")
+        if env_creds.strip():
+            self._VALID_CREDENTIALS = {
+                tuple(pair.split(":", 1))  # type: ignore[misc]
+                for pair in env_creds.split(";")
+                if ":" in pair
+            }
+        else:
+            # Fall back to a predictable-weak set so the honeypot still lures
+            # credential-stuffing attacks.  Passwords use the username plus a
+            # trivial suffix — classic weak patterns that attackers try first.
+            self._VALID_CREDENTIALS = {
+                (u, u) for u in self._DEFAULT_CRED_USERNAMES
+            } | {
+                (u, f"{u}123") for u in ("admin", "user", "test")
+            } | {
+                ("root", "toor"),
+                ("ubuntu", "ubuntu"),
+                ("deploy", "deploy2024"),
+            }
 
         # -- Persona-aware identity (prevents cross-file hardcoded divergence) ----
         persona = self.config.get("persona", {})
@@ -1233,7 +1265,7 @@ class HTTPEmulator(ServiceEmulator):
                 f"REDIS_URL=redis://cache.{domain}:6379/0\n"
                 f"AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"
                 f"AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
-                f"STRIPE_SECRET_KEY=sk_live_8f3a9b2c1d4e5f6a7b8c9d0e1f2a3b4c\n"
+                f"STRIPE_SECRET_KEY=sk_HONEYTOKEN_baitcred_notreal_xxxxxxxxxxx\n"
                 f"JWT_SECRET=super_secret_jwt_key_do_not_share\n"
                 f"API_KEY=ak_live_51H8xYZXYzABCdefGHIjklMNOpqrSTUv\n"
             )

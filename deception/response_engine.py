@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import random
 import string
@@ -85,6 +86,7 @@ class ResponseEngine:
         return f"bash: {cmd}: command not found"
 
     def add_latency(self, base: float, var: float = 0.2) -> float:
+        """Synchronous latency shim — use add_latency_async() in async contexts."""
         if self.realism == "low":
             d = base * 0.1
         elif self.realism == "medium":
@@ -94,7 +96,27 @@ class ResponseEngine:
             if self._rnd.random() < 0.05:
                 d += self._rnd.uniform(0.5, 2.0)
         d = max(0.01, d)
-        time.sleep(d)
+        time.sleep(d)  # Only safe in sync contexts
+        return d
+
+    async def add_latency_async(self, base: float, var: float = 0.2) -> float:
+        """Async-safe latency injection — use this inside async handlers.
+
+        Replaces the blocking time.sleep() with await asyncio.sleep() so the
+        event loop is not blocked. A frozen event loop during deception latency
+        would prevent all other connections from being served — one attacker
+        could self-inflict a DoS on the entire honeypot.
+        """
+        if self.realism == "low":
+            d = base * 0.1
+        elif self.realism == "medium":
+            d = base * (1.0 + self._rnd.uniform(-var, var))
+        else:
+            d = base * (1.0 + self._rnd.uniform(-var, var * 2))
+            if self._rnd.random() < 0.05:
+                d += self._rnd.uniform(0.5, 2.0)
+        d = max(0.01, d)
+        await asyncio.sleep(d)  # Non-blocking — event loop stays alive
         return d
 
     def inject_errors(self, response: str, rate: float = 0.02) -> str:

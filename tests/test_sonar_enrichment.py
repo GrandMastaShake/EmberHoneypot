@@ -271,7 +271,7 @@ def test_enrichment_prompt_includes_context(client_fake_key):
 def test_novelty_prompt_domain_mapping(client_fake_key):
     """Novelty prompt must include the correct domain description."""
     for domain, expected_fragment in [
-        ("legal", "law firms"),
+        ("legal", "legal firms"),
         ("financial", "financial institutions"),
         ("medical", "healthcare"),
         ("general", "enterprise"),

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -144,7 +144,7 @@ def sample_interactions() -> list[InteractionLog]:
     session_id = uuid4()
     attacker_id = uuid4()
     honeypot_id = uuid4()
-    base_time = datetime.utcnow()
+    base_time = datetime.now(timezone.utc)
 
     return [
         InteractionLog(

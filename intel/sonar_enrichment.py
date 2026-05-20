@@ -146,8 +146,7 @@ class SonarIntelligenceClient:
 
         if not self._api_key:
             logger.warning(
-                "sonar.no_api_key",
-                detail="PERPLEXITY_API_KEY not set — Sonar enrichment will be unavailable",
+                "sonar.no_api_key: PERPLEXITY_API_KEY not set — Sonar enrichment will be unavailable"
             )
 
         self._client: httpx.AsyncClient = httpx.AsyncClient(
@@ -233,11 +232,8 @@ class SonarIntelligenceClient:
             status = self._classify_error(exc)
             elapsed = (time.perf_counter() - start) * 1000
             logger.error(
-                "sonar.enrichment_failed",
-                ttp_ids=ttp_ids,
-                status=status.value,
-                error=str(exc),
-                elapsed_ms=round(elapsed, 2),
+                "sonar.enrichment_failed ttp_ids=%s status=%s error=%s elapsed_ms=%.2f",
+                ttp_ids, status.value, str(exc), round(elapsed, 2),
             )
             return SonarEnrichmentResult(
                 status=status,
@@ -252,12 +248,9 @@ class SonarIntelligenceClient:
 
         self._successful_calls += 1
         logger.info(
-            "sonar.enrichment_complete",
-            ttp_ids=ttp_ids,
-            cves_found=len(result.cves),
-            campaigns_found=len(result.campaigns),
-            citations=len(result.citations),
-            elapsed_ms=result.enrichment_time_ms,
+            "sonar.enrichment_complete ttp_ids=%s cves_found=%d campaigns_found=%d citations=%d elapsed_ms=%.2f",
+            ttp_ids, len(result.cves), len(result.campaigns),
+            len(result.citations), result.enrichment_time_ms,
         )
 
         return result
@@ -310,11 +303,8 @@ class SonarIntelligenceClient:
             elapsed = (time.perf_counter() - start) * 1000
             status = self._classify_error(exc)
             logger.error(
-                "sonar.novelty_check_failed",
-                domain=domain,
-                status=status.value,
-                error=str(exc),
-                elapsed_ms=round(elapsed, 2),
+                "sonar.novelty_check_failed domain=%s status=%s error=%s elapsed_ms=%.2f",
+                domain, status.value, str(exc), round(elapsed, 2),
             )
             return {
                 "decision": "REVIEW",
@@ -330,11 +320,9 @@ class SonarIntelligenceClient:
         elapsed = (time.perf_counter() - start) * 1000
         self._successful_calls += 1
         logger.info(
-            "sonar.novelty_check_complete",
-            decision=verdict["decision"],
-            confidence=verdict["confidence"],
-            citations=len(verdict.get("citations", [])),
-            elapsed_ms=round(elapsed, 2),
+            "sonar.novelty_check_complete decision=%s confidence=%s citations=%d elapsed_ms=%.2f",
+            verdict["decision"], verdict["confidence"],
+            len(verdict.get("citations", [])), round(elapsed, 2),
         )
 
         return verdict
@@ -393,7 +381,7 @@ class SonarIntelligenceClient:
         for attempt in range(MAX_RETRIES + 1):
             if attempt > 0:
                 await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
-                logger.warning("sonar.retry", attempt=attempt)
+                logger.warning("sonar.retry attempt=%d", attempt)
 
             try:
                 resp = await self._client.post(
@@ -494,7 +482,7 @@ class SonarIntelligenceClient:
             )
 
         except Exception as exc:
-            logger.error("sonar.parse_failed", error=str(exc))
+            logger.error("sonar.parse_failed error=%s", str(exc))
             return SonarEnrichmentResult(
                 status=SonarStatus.ERROR,
                 ttp_ids=ttp_ids,
@@ -540,7 +528,7 @@ class SonarIntelligenceClient:
             }
 
         except Exception as exc:
-            logger.error("sonar.novelty_parse_failed", error=str(exc))
+            logger.error("sonar.novelty_parse_failed error=%s", str(exc))
             return {
                 "decision": "REVIEW",
                 "confidence": 0.0,
